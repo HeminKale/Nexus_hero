@@ -71,13 +71,16 @@ export default function AppLauncher({ onAppSelect, tenantId }: AppLauncherProps)
 
   return (
     <div className="relative">
+      {/* Debug info */}
+      <div className="text-xs text-red-500 mb-1">AppLauncher Component</div>
+      
       {/* 9-dot App Launcher Icon */}
       <button
         onClick={() => {
           console.log('🔍 App launcher clicked');
           setShowModal(true);
         }}
-        className="p-2 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="p-2 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 border border-red-300"
         title="App Launcher"
       >
         <svg className="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 24 24">

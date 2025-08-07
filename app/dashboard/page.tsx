@@ -39,6 +39,11 @@ export default function Dashboard() {
     setSelectedApp(app);
   };
 
+  // Debug logging
+  console.log('🔍 Dashboard - tenant:', tenant);
+  console.log('🔍 Dashboard - tenant?.id:', tenant?.id);
+  console.log('🔍 Dashboard - userProfile:', userProfile);
+
   if (loading || dashboardLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -56,13 +61,11 @@ export default function Dashboard() {
             <div className="flex items-center space-x-4">
               <h1 className="text-2xl font-bold text-gray-900">Nexus</h1>
               
-              {/* App Launcher */}
-              {tenant?.id && (
-                <AppLauncher 
-                  onAppSelect={handleAppSelect}
-                  tenantId={tenant.id}
-                />
-              )}
+              {/* App Launcher - Always show for testing */}
+              <AppLauncher 
+                onAppSelect={handleAppSelect}
+                tenantId={tenant?.id || 'test-tenant-id'}
+              />
               
               {/* Selected App Display */}
               {selectedApp && (
@@ -107,7 +110,7 @@ export default function Dashboard() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 max-w-2xl mx-auto">
               <div className="text-gray-400 mb-4">
                 <svg className="mx-auto h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 002 2z" />
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -128,6 +131,7 @@ export default function Dashboard() {
                   <p><strong>Name:</strong> {userProfile?.first_name} {userProfile?.last_name}</p>
                   <p><strong>Role:</strong> {userProfile?.role}</p>
                   <p><strong>Organization:</strong> {tenant?.name}</p>
+                  <p><strong>Tenant ID:</strong> {tenant?.id || 'Not loaded'}</p>
                   {selectedApp && (
                     <p><strong>Current App:</strong> {selectedApp.name}</p>
                   )}

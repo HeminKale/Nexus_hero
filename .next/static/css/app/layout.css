@@ -996,6 +996,10 @@ video {
 .border-transparent {
   border-color: transparent;
 }
+.border-red-300 {
+  --tw-border-opacity: 1;
+  border-color: rgb(252 165 165 / var(--tw-border-opacity, 1));
+}
 .bg-\[\#0047AB\] {
   --tw-bg-opacity: 1;
   background-color: rgb(0 71 171 / var(--tw-bg-opacity, 1));
@@ -1212,6 +1216,10 @@ video {
 .text-white {
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
+}
+.text-red-500 {
+  --tw-text-opacity: 1;
+  color: rgb(239 68 68 / var(--tw-text-opacity, 1));
 }
 .opacity-25 {
   opacity: 0.25;

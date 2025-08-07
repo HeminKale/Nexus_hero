@@ -9,6 +9,8 @@ interface UserProfile {
   email: string;
   tenant_id: string;
   role: string;
+  first_name: string;
+  last_name: string;
 }
 
 interface Tenant {

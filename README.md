@@ -182,6 +182,115 @@ User → Permission Sets → Objects/Fields
 Effective permissions = union of all assigned permission sets
 ```
 
+## 🔐 Authentication Flow Details
+
+### Login Flow
+```
+UI Form → Supabase Auth → JWT Token → User Profile → Dashboard
+```
+
+**Step-by-Step Process:**
+1. **UI Layer**: User enters email/password in login form
+2. **Form Validation**: Client-side validation of email format and password length
+3. **Supabase Authentication**: `supabase.auth.signInWithPassword()` validates credentials
+4. **JWT Generation**: Supabase returns JWT token with user metadata
+5. **Token Storage**: JWT stored in browser localStorage
+6. **Profile Loading**: `loadUserProfile()` queries `system.users` table
+7. **Tenant Loading**: Fetches tenant information from `system.tenants`
+8. **UI Update**: `useSupabase()` hook updates with user data
+9. **Redirect**: `router.push('/dashboard')` navigates to dashboard
+
+### Sign-Up Flow
+```
+UI Form → Supabase Auth → User Creation → Tenant Setup → Email Confirmation
+```
+
+**Step-by-Step Process:**
+1. **UI Layer**: User fills signup form (name, email, password, organization)
+2. **Organization Selection**: Choose existing organization or create new one
+3. **Form Validation**: Validate all required fields and password confirmation
+4. **Supabase Registration**: `supabase.auth.signUp()` creates user in `auth.users`
+5. **Tenant Creation**: If new organization, `create_tenant()` RPC creates tenant
+6. **User Profile**: `create_user()` RPC creates profile in `system.users`
+7. **Role Assignment**: Admin role for new org, User role for existing org
+8. **Email Confirmation**: Supabase sends confirmation email
+9. **UI Feedback**: Shows email confirmation message
+10. **Account Activation**: User clicks email link to activate account
+
+### JWT Token Structure
+```json
+{
+  "aud": "authenticated",
+  "exp": 1234567890,
+  "sub": "user-uuid",
+  "email": "user@example.com",
+  "app_metadata": {
+    "tenant_id": "tenant-uuid",
+    "role": "admin"
+  }
+}
+```
+
+### Security Features
+- **Row Level Security (RLS)**: All queries filtered by `tenant_id`
+- **JWT Claims**: Custom claims injected via `system.jwt_claims` function
+- **Tenant Isolation**: Complete data separation between tenants
+- **Role-Based Access**: Admin and User roles with different permissions
+- **Email Verification**: Required email confirmation for new accounts
+
+### Missing Features (Future Implementation)
+- **Password Reset Flow**: Forgot password functionality
+- **Account Deletion**: User account removal
+- **Session Refresh**: Automatic token refresh
+- **Multi-Factor Authentication**: 2FA support
+- **Email Confirmation Callback**: Handle email confirmation redirects
+
+## 🔧 Troubleshooting Authentication Issues
+
+### Common Issues and Solutions
+
+#### 1. "Loading Spinner Never Disappears"
+**Cause**: SupabaseProvider stuck in loading state
+**Solution**: 
+- Check environment variables are correct
+- Verify Supabase project is active
+- Check browser console for connection errors
+
+#### 2. "Login Form Not Working"
+**Cause**: Missing Tailwind CSS configuration
+**Solution**:
+- Ensure `tailwind.config.js` and `postcss.config.js` exist
+- Verify `globals.css` has `@tailwind` directives
+- Restart development server
+
+#### 3. "JWT Claims Not Working"
+**Cause**: JWT custom claims function not configured
+**Solution**:
+- Go to Supabase Dashboard → Authentication → Settings
+- Set JWT Custom Claims Function to: `system.jwt_claims`
+- Save settings
+
+#### 4. "User Profile Not Loading"
+**Cause**: Missing user in `system.users` table
+**Solution**:
+- Check if user exists in `auth.users`
+- Verify RPC functions `create_user` and `create_tenant` are working
+- Check database migrations are applied
+
+#### 5. "Tenant Isolation Not Working"
+**Cause**: RLS policies not applied correctly
+**Solution**:
+- Verify all tables have RLS enabled
+- Check RLS policies include `tenant_id` filtering
+- Ensure JWT contains correct `tenant_id`
+
+### Debug Steps
+1. **Check Browser Console**: Look for JavaScript errors
+2. **Check Network Tab**: Verify API calls are successful
+3. **Check Supabase Logs**: Look for authentication errors
+4. **Verify Environment Variables**: Ensure all required vars are set
+5. **Test Database Connection**: Verify Supabase connection is working
+
 ## 📊 Database Schema
 
 ### System Tables (Global)

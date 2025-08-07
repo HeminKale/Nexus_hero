@@ -1,4 +1,4 @@
-// File: C:\Users\hemin\OneDrive\Desktop\Craft App\app\commonfiles\features\auth\page.tsx
+// File: C:\Users\hemin\OneDrive\Desktop\Craft App - Copy\app\commonfiles\features\auth\page.tsx
 import * as entry from '../../../../../../app/commonfiles/features/auth/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

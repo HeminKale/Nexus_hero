@@ -1,4 +1,4 @@
-// File: C:\Users\hemin\OneDrive\Desktop\Craft App\app\layout.tsx
+// File: C:\Users\hemin\OneDrive\Desktop\Craft App - Copy\app\layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

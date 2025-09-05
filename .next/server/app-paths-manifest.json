@@ -1,0 +1,5 @@
+{
+  "/dashboard/page": "app/dashboard/page.js",
+  "/api/pdf/generate/route": "app/api/pdf/generate/route.js",
+  "/api/excel/parse/route": "app/api/excel/parse/route.js"
+}

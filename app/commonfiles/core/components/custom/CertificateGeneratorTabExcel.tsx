@@ -9,6 +9,7 @@ interface ExcelRow {
   "Company Name"?: string;
   "Client Name"?: string;
   "Address"?: string;
+  "Address alignment"?: string;
   "ISO Standard"?: string;
   "Standard"?: string;
   "Scope"?: string;
@@ -23,6 +24,7 @@ interface ExcelRow {
 interface ProcessedRow {
   name: string;
   address: string;
+  addressAlignment: string;
   isoStandard: string;
   scope: string;
   channelPartner: string;
@@ -104,6 +106,9 @@ export default function CertificateGeneratorTabExcel() {
         case 'address':
           mapping[header] = 'address';
           break;
+        case 'addressalignment':
+          mapping[header] = 'addressAlignment';
+          break;
         case 'isostandard':
         case 'standard':
           mapping[header] = 'isoStandard';
@@ -179,6 +184,7 @@ export default function CertificateGeneratorTabExcel() {
     const processed: ProcessedRow = {
       name: '',
       address: '',
+      addressAlignment: '',
       isoStandard: '',
       scope: '',
       channelPartner: '',
@@ -221,6 +227,9 @@ export default function CertificateGeneratorTabExcel() {
           break;
         case 'address':
           processed.address = value.trim();
+          break;
+        case 'addressAlignment':
+          processed.addressAlignment = value.trim();
           break;
         case 'isoStandard':
           processed.isoStandard = value.trim();
@@ -661,6 +670,7 @@ export default function CertificateGeneratorTabExcel() {
         // ✅ Core fields from draft
         'Company Name': draft.company_name,
         'Address': draft.address__a,
+        'Address alignment': rows[i].addressAlignment || '',
         'Scope': draft.scope__a,
         'ISO Standard': draft.isoStandard__a,
         'Size': draft.size__a,

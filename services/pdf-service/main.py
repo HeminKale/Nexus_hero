@@ -290,6 +290,8 @@ async def generate_certificate_endpoint(
         recertification_date = field_data.get("Recertification Date", "")
         # ✅ ADDED: Extract Extra Line field
         extra_line = field_data.get("Extra Line", "")
+        # ✅ ADDED: Extract Address alignment field
+        address_alignment = field_data.get("Address alignment", "")
         
 
         
@@ -619,6 +621,15 @@ async def generate_softcopy_endpoint(
         logo = soft_copy_data.get("Logo", "")
         # ✅ ADDED: Extract Country field
         country = soft_copy_data.get("Country", "")
+        # ✅ ADDED: Extract Address alignment field
+        print(f"🔍 [SOFTCOPY-DEBUG] All Excel keys: {list(soft_copy_data.keys())}")
+        address_alignment = soft_copy_data.get("Address alignment", "")
+        print(f"🔍 [SOFTCOPY-DEBUG] Raw Address alignment from Excel: '{address_alignment}'")
+        # Try alternative field names
+        alt_address_alignment = soft_copy_data.get("Address Alignment", "")
+        print(f"🔍 [SOFTCOPY-DEBUG] Alternative 'Address Alignment': '{alt_address_alignment}'")
+        alt_address_alignment2 = soft_copy_data.get("address alignment", "")
+        print(f"🔍 [SOFTCOPY-DEBUG] Alternative 'address alignment': '{alt_address_alignment2}'")
 
         # ✅ ADDED: Extract logo files from form data
         try:
@@ -673,6 +684,8 @@ async def generate_softcopy_endpoint(
             "Initial Registration Date": initial_registration_date if initial_registration_date else "",
             "Surveillance Due Date": surveillance_due_date if surveillance_due_date else "",
             "Expiry Date": expiry_date if expiry_date else "",
+            # ✅ ADDED: Add Address alignment field
+            "Address alignment": address_alignment if address_alignment else "",
             # ✅ ADDED: Add logo lookup for filename matching
             "logo_lookup": logo_lookup
         }
@@ -942,6 +955,8 @@ async def generate_printable(
     expiry_date: str = Form(""),
     # ✅ ADDED: Extract Extra Line field
     extra_line: str = Form(""),
+    # ✅ ADDED: Extract Address alignment field
+    address_alignment: str = Form(""),
     logo: str = Form(""),
     template: UploadFile = File(None)
 ):
@@ -1003,6 +1018,8 @@ async def generate_printable(
             "Expiry Date": expiry_date if expiry_date else "",
             # ✅ ADDED: Add Extra Line field
             "Extra Line": extra_line if extra_line else "",
+            # ✅ ADDED: Add Address alignment field
+            "Address alignment": address_alignment if address_alignment else "",
             # ✅ ADDED: Add logo lookup for filename matching
             "logo_lookup": logo_lookup
         }
@@ -1319,6 +1336,8 @@ async def generate_certificate_json_endpoint(
         surveillance_date = field_data.get("Surveillance/ Expiry Date", "")
         recertification_date = field_data.get("Recertification Date", "")
         extra_line = field_data.get("Extra Line", "")
+        # ✅ ADDED: Extract Address alignment field
+        address_alignment = field_data.get("Address alignment", "")
         
         # Create output file path
         output_filename = f"generated_certificate_{os.getpid()}.pdf"

@@ -89,7 +89,8 @@ function ClientPrintableGenerator({ recordId, objectId, tenantId, recordData, se
     size: 'high',
     accreditation: 'yes',
     extraLine: '',
-    country: ''
+    country: '',
+    addressAlignment: ''
   });
 
   // Get tenant context

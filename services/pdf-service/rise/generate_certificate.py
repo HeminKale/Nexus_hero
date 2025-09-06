@@ -956,6 +956,21 @@ def generate_certificate(base_pdf_path: str, output_pdf_path: str, values: Dict[
             company_processed_lines = process_text_with_line_breaks(company_text, "Company")
             address_processed_lines = process_text_with_line_breaks(safe_address_text, "Address")
             
+            # ✅ ADDED: Determine address alignment based on Excel column or line count
+            address_alignment_column = values.get("Address alignment", "").strip().lower()
+            address_lines_count = len(address_processed_lines)
+            
+            if address_alignment_column == "center":
+                address_alignment = "center"
+                print(f"🔍 [CERTIFICATE] Address: Excel column specifies CENTERED alignment")
+            elif address_alignment_column == "left":
+                address_alignment = "left"
+                print(f"🔍 [CERTIFICATE] Address: Excel column specifies LEFT alignment")
+            else:
+                # Default logic: always center unless Excel column specifies otherwise
+                address_alignment = "center"  # Default: always center
+                print(f"🔍 [CERTIFICATE] Address: No Excel column value - using CENTERED alignment (default)")
+            
             # ✅ ADDED: Defensive check for coords dictionary
             if coords is None:
                 print(f"⚠️ [CERTIFICATE] Coords dictionary is None - cannot continue")
@@ -1073,11 +1088,8 @@ def generate_certificate(base_pdf_path: str, output_pdf_path: str, values: Dict[
                 company_font_size -= 1
             
             # Calculate Company Name height
-            # Template-specific line spacing: 1.1 for large/logo, 1.2 for standard
-            if template_type in ["large", "large_eco", "large_nonaccredited", "logo", "logo_nonaccredited", "logo_other", "logo_other_nonaccredited"]:
-                company_height = len(final_company_lines) * company_font_size * 1.1  # Tight spacing for large/logo templates
-            else:  # standard templates
-                company_height = len(final_company_lines) * company_font_size * 1.2  # Loose spacing for standard templates
+            # Consistent line spacing: 1.05 for all templates
+            company_height = len(final_company_lines) * company_font_size * 1.05  # Consistent spacing for all templates
             
             # Now find font size for Address to fit in remaining space
             remaining_height = rect.height - company_height - 2  # Leave margin
@@ -1144,18 +1156,15 @@ def generate_certificate(base_pdf_path: str, output_pdf_path: str, values: Dict[
                 total_height = company_height + address_height
 
                 
-                # Fixed top margin always 2pt
-                start_y = rect.y0 + 2  # 2pt margin from top of box
+                # No top margin - start at exact rectangle top
+                start_y = rect.y0  # Start at exact top of box
 
                 
                 # Render Company Name first (starts from top)
                 current_y = start_y
                 for i, line in enumerate(final_company_lines):
-                    # Template-specific line spacing: 1.1 for large/logo, 1.2 for standard
-                    if template_type in ["large", "large_eco", "large_nonaccredited", "logo", "logo_nonaccredited", "logo_other", "logo_other_nonaccredited"]:
-                        line_height = company_font_size * 1.1  # Tight spacing for large/logo templates
-                    else:  # standard templates
-                        line_height = company_font_size * 1.2  # Loose spacing for standard templates
+                    # Consistent line spacing: 1.05 for all templates
+                    line_height = company_font_size * 1.05  # Consistent spacing for all templates
                     y_pos = current_y + line_height/2  # Adjust for baseline
                     center_x = (rect.x0 + rect.x1) / 2
                     
@@ -1192,24 +1201,28 @@ def generate_certificate(base_pdf_path: str, output_pdf_path: str, values: Dict[
                     current_y += line_height
                 
                 # Add spacing between Company Name and Address
-                spacing = 8  # 8pt spacing between Company Name and Address
+                spacing = 3  # 3pt spacing between Company Name and Address
                 current_y += spacing
                 
                 # Now render Address below Company Name (fills remaining space)
                 for i, line in enumerate(final_address_lines):
-                    # Template-specific line spacing: 1.1 for large/logo, 1.2 for standard
-                    if template_type in ["large", "large_eco", "large_nonaccredited", "logo", "logo_nonaccredited", "logo_other", "logo_other_nonaccredited"]:
-                        line_height = address_font_size * 1.1  # Tight spacing for large/logo templates
-                    else:  # standard templates
-                        line_height = address_font_size * 1.2  # Loose spacing for standard templates
+                    # Consistent line spacing: 1.05 for all templates
+                    line_height = address_font_size * 1.05  # Consistent spacing for all templates
                     y_pos = current_y + line_height/2  # Adjust for baseline
-                    center_x = (rect.x0 + rect.x1) / 2
+                    
+                    # ✅ ADDED: Dynamic alignment based on address line count
+                    if address_alignment == "center":
+                        center_x = (rect.x0 + rect.x1) / 2
+                        line_width = font_obj.text_length(line, address_font_size)
+                        x_pos = center_x - line_width / 2
+                    else:  # left-aligned
+                        x_pos = rect.x0 + 5  # Small left margin
                     
                     # ✅ UPDATED: Handle empty lines (preserve spacing from Excel)
                     if line.strip():  # Non-empty line - render text
                         # ✅ ENHANCED: Use mixed format text rendering for bold detection
                         if '**' in line or '__' in line:
-                            # Calculate total width for centering
+                            # Calculate total width for alignment
                             segments = process_bold_text(line)
                             total_width = 0
                             for segment_text, _, _ in segments:
@@ -1217,12 +1230,16 @@ def generate_certificate(base_pdf_path: str, output_pdf_path: str, values: Dict[
                                     font_obj = fitz.Font(fontname="Times-Bold" if "**" in segment_text or "__" in segment_text else "Times-Roman")
                                     total_width += font_obj.text_length(segment_text, address_font_size)
                             
-                            x_pos = center_x - total_width / 2
+                            # Apply alignment based on address_alignment setting
+                            if address_alignment == "center":
+                                x_pos = center_x - total_width / 2
+                            else:  # left-aligned
+                                x_pos = rect.x0 + 5  # Small left margin
+                            
                             render_mixed_format_text(page, (x_pos, y_pos), line, address_font_size, color)
                         else:
                             # Standard rendering for non-bold text
-                            line_width = font_obj.text_length(line, address_font_size)
-                            x_pos = center_x - line_width / 2
+                            # ✅ FIXED: Don't recalculate x_pos - use the alignment already determined
                             
                             # ✅ ADDED: Dynamic font selection for Address
                             dynamic_font = get_font_for_text(line, fontname)

@@ -672,7 +672,7 @@ def generate_softcopy(base_pdf_path: str, output_pdf_path: str, values: Dict[str
         "management_system": fitz.Rect(87.9, 185, 580, 226.6),  # Same as standard
         "Company Name and Address": fitz.Rect(87.9, 222.6, 580, 295),  # Same as standard
         "ISO Standard": fitz.Rect(194.9, 300, 460.3, 336),  # Same as standard
-        "Scope": fitz.Rect(85, 351, 577, 536),  # Much larger for >30 lines
+        "Scope": fitz.Rect(85, 354, 577, 536),  # Much larger for >30 lines
         "certification_code": fitz.Rect(253, 757, 285, 762)  # ✅ UPDATED: Certification code coordinates
     }
     
@@ -1030,6 +1030,21 @@ def generate_softcopy(base_pdf_path: str, output_pdf_path: str, values: Dict[str
             # Pre-process both company and address text to handle line breaks
             company_processed_lines = process_text_with_line_breaks(company_text, "Company")
             address_processed_lines = process_text_with_line_breaks(address_text, "Address")
+            
+            # ✅ ADDED: Determine address alignment based on Excel column or line count
+            address_alignment_column = values.get("Address alignment", "").strip().lower()
+            address_lines_count = len(address_processed_lines)
+            
+            if address_alignment_column == "center":
+                address_alignment = "center"
+                print(f"🔍 [SOFTCOPY] Address: Excel column specifies CENTERED alignment")
+            elif address_alignment_column == "left":
+                address_alignment = "left"
+                print(f"🔍 [SOFTCOPY] Address: Excel column specifies LEFT alignment")
+            else:
+                # Default logic: always center unless Excel column specifies otherwise
+                address_alignment = "center"  # Default: always center
+                print(f"🔍 [SOFTCOPY] Address: No Excel column value - using CENTERED alignment (default)")
 
            
 
@@ -1115,7 +1130,8 @@ def generate_softcopy(base_pdf_path: str, output_pdf_path: str, values: Dict[str
                     company_font_size -= 1
 
             # Calculate Company Name height
-            company_height = len(final_company_lines) * company_font_size * 1.0
+            # Consistent line spacing: 1.05 for all templates
+            company_height = len(final_company_lines) * company_font_size * 1.05  # Consistent spacing for all templates
 
             # Now find font size for Address to fit in remaining space
             remaining_height = rect.height - company_height - 2  # Leave margin
@@ -1174,13 +1190,13 @@ def generate_softcopy(base_pdf_path: str, output_pdf_path: str, values: Dict[str
                 # Calculate total height
                 total_height = company_height + address_height
 
-                # Reduced top margin to 2pt for tighter spacing
-                start_y = rect.y0 + 2  # 2pt margin from top of box
+                # No top margin - start at exact rectangle top
+                start_y = rect.y0  # Start at exact top of box
 
                 # Render Company Name first (starts from top)
                 current_y = start_y
                 for i, line in enumerate(final_company_lines):
-                    line_height = company_font_size * 1.0
+                    line_height = company_font_size * 1.05  # Consistent spacing for all templates
                     y_pos = current_y + line_height/2  # Adjust for baseline
                     center_x = (rect.x0 + rect.x1) / 2
                     
@@ -1219,21 +1235,26 @@ def generate_softcopy(base_pdf_path: str, output_pdf_path: str, values: Dict[str
                 # Render Address below Company Name
                 if final_address_lines:
                     # Add spacing between company and address
-                    current_y += 8  # 8pt spacing (same as certificate generation)
+                    current_y += 3  # 3pt spacing (consistent with certificate generation)
 
                     for i, line in enumerate(final_address_lines):
-                        line_height = address_font_size * 1.0
+                        line_height = address_font_size * 1.05  # Consistent spacing for all templates
                         y_pos = current_y + line_height/2  # Adjust for baseline
-                        center_x = (rect.x0 + rect.x1) / 2
-                        line_width = font_obj.text_length(line, address_font_size)
-                        x_pos = center_x - line_width / 2
+                        
+                        # ✅ ADDED: Dynamic alignment based on address line count
+                        if address_alignment == "center":
+                            center_x = (rect.x0 + rect.x1) / 2
+                            line_width = font_obj.text_length(line, address_font_size)
+                            x_pos = center_x - line_width / 2
+                        else:  # left-aligned
+                            x_pos = rect.x0 + 5  # Small left margin
 
 
                         # ✅ UPDATED: Handle empty lines (preserve spacing from Excel)
                         if line.strip():  # Non-empty line - render text
                             # ✅ ENHANCED: Use mixed format text rendering for bold detection
                             if '**' in line or '__' in line:
-                                # Calculate total width for centering
+                                # Calculate total width for alignment
                                 segments = process_bold_text(line)
                                 total_width = 0
                                 for segment_text, _, _ in segments:
@@ -1241,12 +1262,16 @@ def generate_softcopy(base_pdf_path: str, output_pdf_path: str, values: Dict[str
                                         font_obj = fitz.Font(fontname="Times-Bold" if "**" in segment_text or "__" in segment_text else "Times-Roman")
                                         total_width += font_obj.text_length(segment_text, address_font_size)
                                 
-                                x_pos = center_x - total_width / 2
+                                # Apply alignment based on address_alignment setting
+                                if address_alignment == "center":
+                                    x_pos = center_x - total_width / 2
+                                else:  # left-aligned
+                                    x_pos = rect.x0 + 5  # Small left margin
+                                
                                 render_mixed_format_text(page, (x_pos, y_pos), line, address_font_size, color)
                             else:
                                 # Standard rendering for non-bold text
-                                line_width = font_obj.text_length(line, address_font_size)
-                                x_pos = center_x - line_width / 2
+                                # x_pos is already calculated above based on alignment
                                 
                                 # ✅ ADDED: Dynamic font selection for Address
                                 dynamic_font = get_font_for_text(line, fontname)

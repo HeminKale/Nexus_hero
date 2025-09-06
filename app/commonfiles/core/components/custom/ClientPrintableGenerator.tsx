@@ -36,6 +36,7 @@ interface ClientData {
 interface PrintableGenerationData {
   "Company Name": string;
   "Address": string;
+  "Address alignment": string;  // ✅ ADDED: Address alignment support
   "ISO Standard": string;
   "Scope": string;
   "Certificate Number": string;
@@ -156,6 +157,7 @@ function ClientPrintableGenerator({ recordId, objectId, tenantId, recordData, se
     return {
       "Company Name": companyName,
       "Address": record.address__a || '',
+      "Address alignment": formData.addressAlignment || '',  // ✅ ADDED: Address alignment support
       "ISO Standard": extractedIsoStandard,
       "Scope": record.scope__a || '',
       "Certificate Number": formData.certificateNumber || `PRINT-${companyName.substring(0, 3).toUpperCase()}-${Date.now()}`,
@@ -209,6 +211,7 @@ function ClientPrintableGenerator({ recordId, objectId, tenantId, recordData, se
       // Add individual form fields as expected by generate_printable endpoint
       formDataPayload.append('company_name', printableData["Company Name"]);
       formDataPayload.append('address', printableData["Address"]);
+      formDataPayload.append('address_alignment', printableData["Address alignment"]);  // ✅ ADDED: Address alignment support
       formDataPayload.append('iso_standard', printableData["ISO Standard"]);
       formDataPayload.append('scope', printableData["Scope"]);
       formDataPayload.append('certificate_number', printableData["Certificate Number"]);
@@ -336,6 +339,7 @@ function ClientPrintableGenerator({ recordId, objectId, tenantId, recordData, se
           // Add individual form fields as expected by generate_printable endpoint
           formDataPayload.append('company_name', printableData["Company Name"]);
           formDataPayload.append('address', printableData["Address"]);
+          formDataPayload.append('address_alignment', printableData["Address alignment"]);  // ✅ ADDED: Address alignment support
           formDataPayload.append('iso_standard', printableData["ISO Standard"]);
           formDataPayload.append('scope', printableData["Scope"]);
           formDataPayload.append('certificate_number', printableData["Certificate Number"]);

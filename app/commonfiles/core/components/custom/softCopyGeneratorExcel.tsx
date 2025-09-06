@@ -22,6 +22,7 @@ interface ExcelRow {
 interface ProcessedRow {
   name: string;
   address: string;
+  addressAlignment: string;
   isoStandard: string;
   scope: string;
   channelPartner: string;
@@ -166,6 +167,9 @@ export default function softCopyGeneratorExcel() {
         case 'address':
           mapping[header] = 'address';
           break;
+        case 'addressalignment':
+          mapping[header] = 'addressAlignment';
+          break;
         case 'isostandard':
         case 'standard':
           mapping[header] = 'isoStandard';
@@ -241,6 +245,7 @@ export default function softCopyGeneratorExcel() {
     const processed: ProcessedRow = {
       name: '',
       address: '',
+      addressAlignment: '',
       isoStandard: '',
       scope: '',
       channelPartner: '',
@@ -284,6 +289,9 @@ export default function softCopyGeneratorExcel() {
           break;
         case 'address':
           processed.address = value.trim();
+          break;
+        case 'addressAlignment':
+          processed.addressAlignment = value.trim();
           break;
         case 'isoStandard':
           processed.isoStandard = value.trim();
@@ -538,6 +546,7 @@ export default function softCopyGeneratorExcel() {
       const jsonData = {
         "Company Name": row.name,
         "Address": row.address,
+        "Address alignment": row.addressAlignment,
         "ISO Standard": row.isoStandard,
         "Scope": row.scope,
         "Size": row.size || '',
@@ -712,6 +721,7 @@ export default function softCopyGeneratorExcel() {
           const formData = new FormData();
           formData.append('company_name', row.name);                    // ✅ Single value
           formData.append('address', row.address);                      // ✅ Single value
+          formData.append('address_alignment', row.addressAlignment || '');  // ✅ ADDED: Address alignment support
           formData.append('iso_standard', row.isoStandard);             // ✅ Single value
           formData.append('scope', row.scope);                          // ✅ Single value
           formData.append('size', row.size || '');                      // ✅ Single value

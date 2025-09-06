@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
     // Extract form data
     const company_name = formData.get('company_name') as string;
     const address = formData.get('address') as string;
+    const address_alignment = formData.get('address_alignment') as string;  // ✅ ADDED: Extract address alignment
     const iso_standard = formData.get('iso_standard') as string;
     const scope = formData.get('scope') as string;
     const certificate_number = formData.get('certificate_number') as string;
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
     const pythonFormData = new FormData();
     pythonFormData.append('company_name', company_name);
     pythonFormData.append('address', address || '');
+    pythonFormData.append('address_alignment', address_alignment || '');  // ✅ ADDED: Send address alignment to Python service
     pythonFormData.append('iso_standard', iso_standard || '');
     pythonFormData.append('scope', scope || '');
     pythonFormData.append('certificate_number', certificate_number || '');

@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
       // ✅ FIXED: Use data from JSON
       "Company Name": companyName.trim(),
       "Address": jsonData["Address"]?.trim() || '',
+      "Address alignment": jsonData["Address alignment"]?.trim() || '',
       "ISO Standard": jsonData["ISO Standard"]?.trim() || '',
       "Scope": jsonData["Scope"]?.trim() || '',
       "Certificate Number": jsonData["Certificate Number"]?.trim() || '',

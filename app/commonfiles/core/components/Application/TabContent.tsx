@@ -13,7 +13,7 @@ import { FilterBuilder } from './RecordList/FilterBuilder';
 import { UniversalFieldDisplay, formatColumnLabel } from '../ui/UniversalFieldDisplay';
 import CustomTabRenderer from './CustomTabRenderer';
 import * as XLSX from 'xlsx';
-import { draftToClientService } from '../../services/DraftToClientService';
+// import { draftToClientService } from '../../services/DraftToClientService'; // Commented out - service not available
 
 interface TabContentProps {
   tabId: string;
@@ -725,22 +725,26 @@ export default function TabContent({
     }
 
     try {
-      const result = await draftToClientService.handleDraftApproval(
-        recordId,
-        tenant.id,
-        user?.id
-      );
+      // TODO: Implement draftToClientService or replace with alternative
+      console.log('Draft approval functionality temporarily disabled - service not available');
+      alert('Draft approval functionality is temporarily disabled');
+      
+      // const result = await draftToClientService.handleDraftApproval(
+      //   recordId,
+      //   tenant.id,
+      //   user?.id
+      // );
 
-      if (result.success) {
-        alert(result.message);
-        // Refresh the records to show updated data
-        await fetchObjectRecords();
-      } else {
-        console.error('❌ Draft approval failed:', result.message);
-        if (result.error) {
-          console.error('❌ Error details:', result.error);
-        }
-      }
+      // if (result.success) {
+      //   alert(result.message);
+      //   // Refresh the records to show updated data
+      //   await fetchObjectRecords();
+      // } else {
+      //   console.error('❌ Draft approval failed:', result.message);
+      //   if (result.error) {
+      //     console.error('❌ Error details:', result.error);
+      //   }
+      // }
     } catch (error) {
       console.error('❌ Error handling draft approval:', error);
     }

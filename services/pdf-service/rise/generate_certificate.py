@@ -196,6 +196,365 @@ def parse_word_form(docx_path: str) -> Dict[str, str]:
     
     return result
 
+def preprocess_image_for_ocr(image):
+    """Preprocess image to improve OCR accuracy."""
+    import cv2
+    import numpy as np
+    
+    # Convert to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # Apply noise reduction
+    denoised = cv2.medianBlur(gray, 3)
+    
+    # Apply thresholding
+    _, thresh = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    
+    # Apply morphological operations
+    kernel = np.ones((1, 1), np.uint8)
+    processed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    
+    return processed
+
+def parse_ocr_text_as_table(text):
+    """Parse OCR text to detect table structure."""
+    lines = text.split('\n')
+    table_data = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Look for field:value patterns
+        if ':' in line:
+            parts = line.split(':', 1)
+            if len(parts) == 2:
+                key = parts[0].strip()
+                value = parts[1].strip()
+                table_data.append([key, value])
+        else:
+            # This might be a continuation line
+            table_data.append(['', line])
+    
+    return table_data
+
+def extract_fields_from_ocr_text(text):
+    """Extract fields from OCR text using pattern matching."""
+    import re
+    
+    data = {}
+    
+    # Define patterns for field extraction
+    patterns = {
+        "Company Name": [
+            r"Company Name[:\s]+(.+?)(?=\n\s*(?:Address|ISO Standard Required|Scope)|$)",
+            r"Company[:\s]+(.+?)(?=\n\s*(?:Address|ISO Standard Required|Scope)|$)"
+        ],
+        "Address": [
+            r"Address[:\s]+(.+?)(?=\n\s*(?:ISO Standard Required|Scope)|$)",
+            r"Location[:\s]+(.+?)(?=\n\s*(?:ISO Standard Required|Scope)|$)"
+        ],
+        "ISO Standard Required": [
+            r"ISO Standard Required[:\s]+(.+?)(?=\n\s*(?:Scope)|$)",
+            r"ISO Standard[:\s]+(.+?)(?=\n\s*(?:Scope)|$)"
+        ],
+        "Scope": [
+            r"Scope[:\s]+(.+?)(?=\n\s*(?:Company Name|Address|ISO Standard Required)|$)"
+        ]
+    }
+    
+    for field_name, field_patterns in patterns.items():
+        for pattern in field_patterns:
+            match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+            if match:
+                value = match.group(1).strip()
+                if value:
+                    data[field_name] = value
+                    break
+    
+    return data
+
+def extract_from_images(image_path: str) -> Dict[str, str]:
+    """Extract fields from image using OCR with table detection."""
+    import pytesseract
+    import cv2
+    import numpy as np
+    from PIL import Image
+    
+    print(f"🔍 [IMAGE-DEBUG] Starting OCR extraction from: {image_path}")
+    
+    try:
+        # Load and preprocess image
+        image = cv2.imread(image_path)
+        if image is None:
+            raise Exception(f"Could not load image: {image_path}")
+            
+        processed_image = preprocess_image_for_ocr(image)
+        
+        # OCR with table detection
+        custom_config = r'--oem 3 --psm 6'  # Table detection mode
+        text = pytesseract.image_to_string(processed_image, config=custom_config)
+        
+        print(f"🔍 [IMAGE-DEBUG] OCR extracted text:")
+        print(f"🔍 [IMAGE-DEBUG] {text[:1000]}{'...' if len(text) > 1000 else ''}")
+        
+        # Try to detect table structure
+        table_data = parse_ocr_text_as_table(text)
+        if table_data:
+            print(f"🔍 [IMAGE-DEBUG] Table structure detected: {len(table_data)} rows")
+            return process_table_data(table_data)
+        
+        # Fallback to text pattern matching
+        print(f"🔍 [IMAGE-DEBUG] No table structure found, using pattern matching")
+        return extract_fields_from_ocr_text(text)
+        
+    except Exception as e:
+        print(f"🔍 [IMAGE-DEBUG] Error in OCR extraction: {e}")
+        raise Exception(f"Failed to extract text from image: {str(e)}")
+
+def process_table_data(table_data):
+    """Process table data to extract fields, similar to PDF table processing."""
+    data = {}
+    last_recognized_field = None
+    
+    for i, row in enumerate(table_data):
+        if len(row) >= 2:
+            key = str(row[0]).strip() if row[0] else ""
+            value = str(row[1]).strip() if row[1] else ""
+            
+            print(f"🔍 [IMAGE-DEBUG] Row {i+1}: '{key}' -> '{value[:50]}{'...' if len(value) > 50 else ''}'")
+            
+            # Check if this is a recognized field
+            if key in ['Company Name', 'Address', 'ISO Standard Required', 'Scope']:
+                data[key] = value
+                last_recognized_field = key
+                print(f"🔍 [IMAGE-DEBUG] ✅ Found recognized field '{key}': '{value[:100]}{'...' if len(value) > 100 else ''}'")
+            elif key == "" and value and last_recognized_field:
+                # This is a continuation line (empty key, has value)
+                data[last_recognized_field] += " " + value
+                print(f"🔍 [IMAGE-DEBUG] 🔗 Appended continuation to '{last_recognized_field}': '{value[:50]}{'...' if len(value) > 50 else ''}'")
+            else:
+                print(f"🔍 [IMAGE-DEBUG] ⏭️ Skipping unrecognized field '{key}'")
+    
+    return data
+
+def parse_pdf_form(pdf_path: str) -> Dict[str, str]:
+    """Parse a PDF document or image using hybrid table + text + OCR extraction approach."""
+    
+    try:
+        # Determine file type
+        file_extension = pdf_path.lower().split('.')[-1]
+        
+        if file_extension in ['png', 'jpg', 'jpeg']:
+            # Phase 1: Try image extraction with OCR
+            print(f"🔍 [PDF-DEBUG] Detected image file, using OCR extraction")
+            data = extract_from_images(pdf_path)
+        else:
+            # Phase 2: Try table extraction first
+            data = extract_from_tables(pdf_path)
+        
+        # Phase 2: If table extraction fails or is incomplete, use text extraction
+        if not data or len(data) < 4:
+            print(f"🔍 [PDF-DEBUG] Table extraction incomplete ({len(data) if data else 0}/4 fields), trying text extraction...")
+            data = extract_from_text(pdf_path)
+        
+        # If still no data found, raise exception
+        if not data:
+            raise Exception("No recognizable field patterns found in PDF")
+        
+        # Get ISO Standard and expand it to full version with year
+        iso_standard = data.get("ISO Standard Required", "").splitlines()[-1] if data.get("ISO Standard Required") else ""
+        expanded_iso = expand_iso_standard(iso_standard)
+        
+        result = {
+            "Company Name": data.get("Company Name", ""),
+            "Address": data.get("Address", ""),
+            "ISO Standard": expanded_iso,
+            "Scope": data.get("Scope", "")
+        }
+        
+        print(f"🔍 [PDF-DEBUG] Final extracted fields:")
+        for key, value in result.items():
+            print(f"🔍 [PDF-DEBUG] {key}: '{value[:100]}{'...' if len(value) > 100 else ''}'")
+        
+        return result
+        
+    except Exception as e:
+        raise Exception(f"Failed to parse PDF: {str(e)}")
+
+def extract_from_tables(pdf_path: str) -> Dict[str, str]:
+    """Extract fields from PDF using table extraction - fixes contamination issue."""
+    
+    doc = fitz.open(pdf_path)
+    data = {}
+    
+    try:
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            
+            # Try to extract tables from the page
+            tables = page.find_tables()
+            
+            # Convert TableFinder to list
+            tables_list = list(tables)
+            
+            if tables_list:
+                print(f"🔍 [PDF-DEBUG] Found {len(tables_list)} table(s) on page {page_num + 1}")
+                
+                # Use the first table found
+                table = tables_list[0]
+                table_data = table.extract()
+                
+                print(f"🔍 [PDF-DEBUG] Table data extracted: {len(table_data)} rows")
+                
+                # Process each row as key-value pairs
+                last_recognized_field = None  # Track the last recognized field
+                
+                for i, row in enumerate(table_data):
+                    if len(row) >= 2:
+                        key = str(row[0]).strip() if row[0] else ""
+                        value = str(row[1]).strip() if row[1] else ""
+                        
+                        print(f"🔍 [PDF-DEBUG] Row {i+1}: '{key}' -> '{value[:50]}{'...' if len(value) > 50 else ''}'")
+                        
+                        # Check if this is a recognized field
+                        if key in ['Company Name', 'Address', 'ISO Standard Required', 'Scope']:
+                            data[key] = value
+                            last_recognized_field = key  # Track the last recognized field
+                            print(f"🔍 [PDF-DEBUG] ✅ Found recognized field '{key}': '{value[:100]}{'...' if len(value) > 100 else ''}'")
+                        elif key == "" and value and last_recognized_field:
+                            # This is a continuation line (empty key, has value)
+                            # Append to the last recognized field
+                            data[last_recognized_field] += " " + value
+                            print(f"🔍 [PDF-DEBUG] 🔗 Appended continuation to '{last_recognized_field}': '{value[:50]}{'...' if len(value) > 50 else ''}'")
+                        else:
+                            print(f"🔍 [PDF-DEBUG] ⏭️ Skipping unrecognized field '{key}'")
+                
+                # If we found data in tables, use it
+                if data:
+                    print(f"🔍 [PDF-DEBUG] Table extraction successful: {len(data)} fields found")
+                    break
+            else:
+                print(f"🔍 [PDF-DEBUG] No tables found on page {page_num + 1}")
+    
+    finally:
+        doc.close()
+    
+    return data
+
+def extract_from_text(pdf_path: str) -> Dict[str, str]:
+    """Extract fields from PDF using text extraction as fallback."""
+    
+    doc = fitz.open(pdf_path)
+    text = ""
+    
+    try:
+        # Extract all text from PDF
+        for page in doc:
+            text += page.get_text() + "\n"
+        
+        print(f"🔍 [PDF-DEBUG] Extracted text from PDF:")
+        print(f"🔍 [PDF-DEBUG] {text[:1000]}{'...' if len(text) > 1000 else ''}")
+        print(f"🔍 [PDF-DEBUG] ===== END EXTRACTED TEXT =====")
+        
+        # Simple field extraction without regex - handle multi-line content properly
+        lines = text.split('\n')
+        data = {}
+        current_field = None
+        current_value = []
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check if this line starts a new field (look for field names followed by colon or at start of line)
+            field_names = ['Company Name', 'Address', 'ISO Standard Required', 'Scope']
+            is_field_start = False
+            detected_field = None
+            
+            for field_name in field_names:
+                if line.startswith(field_name + ':') or line == field_name:
+                    is_field_start = True
+                    detected_field = field_name
+                    break
+            
+            if is_field_start:
+                # Save previous field
+                if current_field and current_value:
+                    data[current_field] = '\n'.join(current_value).strip()
+                    print(f"🔍 [PDF-DEBUG] Saved field '{current_field}': '{data[current_field][:100]}{'...' if len(data[current_field]) > 100 else ''}'")
+                
+                # Start new field
+                current_field = detected_field
+                current_value = []
+                
+                # Extract value from the same line if it exists after the colon
+                if ':' in line:
+                    value_part = line.split(':', 1)[1].strip()
+                    if value_part:
+                        current_value.append(value_part)
+            elif current_field:
+                # This is a continuation of the current field
+                current_value.append(line)
+        
+        # Save last field
+        if current_field and current_value:
+            data[current_field] = '\n'.join(current_value).strip()
+            print(f"🔍 [PDF-DEBUG] Saved final field '{current_field}': '{data[current_field][:100]}{'...' if len(data[current_field]) > 100 else ''}'")
+    
+    finally:
+        doc.close()
+    
+    return data
+
+def extract_fields_from_text(text: str) -> Dict[str, str]:
+    """Extract fields from text using pattern matching as fallback."""
+    
+    data = {}
+    
+    # Debug: Print the extracted text to understand the structure
+    print(f"🔍 [PDF-DEBUG] Extracted text from PDF:")
+    print(f"🔍 [PDF-DEBUG] {text[:500]}{'...' if len(text) > 500 else ''}")
+    print(f"🔍 [PDF-DEBUG] ===== END EXTRACTED TEXT =====")
+    
+    # Define patterns for field extraction - capture until next field or end
+    patterns = {
+        "Company Name": [
+            r"Company Name[:\s]+(.+?)(?=\n\s*(?:Address|ISO Standard Required|Scope|Certificate Number|Original Issue Date|Issue Date|Surveillance/Expiry Date|Recertification Date|Initial Registration Date|Surveillance Due Date|Expiry Date|Extra Line)|$)",
+            r"Company[:\s]+(.+?)(?=\n\s*(?:Address|ISO Standard Required|Scope|Certificate Number|Original Issue Date|Issue Date|Surveillance/Expiry Date|Recertification Date|Initial Registration Date|Surveillance Due Date|Expiry Date|Extra Line)|$)",
+            r"Organization[:\s]+(.+?)(?=\n\s*(?:Address|ISO Standard Required|Scope|Certificate Number|Original Issue Date|Issue Date|Surveillance/Expiry Date|Recertification Date|Initial Registration Date|Surveillance Due Date|Expiry Date|Extra Line)|$)"
+        ],
+        "Address": [
+            r"Address[:\s]+(.+?)(?=\n\s*(?:ISO Standard Required|Scope|Certificate Number|Original Issue Date|Issue Date|Surveillance/Expiry Date|Recertification Date|Initial Registration Date|Surveillance Due Date|Expiry Date|Extra Line)|$)",
+            r"Location[:\s]+(.+?)(?=\n\s*(?:ISO Standard Required|Scope|Certificate Number|Original Issue Date|Issue Date|Surveillance/Expiry Date|Recertification Date|Initial Registration Date|Surveillance Due Date|Expiry Date|Extra Line)|$)"
+        ],
+        "ISO Standard Required": [
+            r"ISO Standard Required[:\s]+(.+?)(?=\n\s*(?:Scope|Certificate Number|Original Issue Date|Issue Date|Surveillance/Expiry Date|Recertification Date|Initial Registration Date|Surveillance Due Date|Expiry Date|Extra Line)|$)",
+            r"ISO Standard[:\s]+(.+?)(?=\n\s*(?:Scope|Certificate Number|Original Issue Date|Issue Date|Surveillance/Expiry Date|Recertification Date|Initial Registration Date|Surveillance Due Date|Expiry Date|Extra Line)|$)",
+            r"Standard[:\s]+(.+?)(?=\n\s*(?:Scope|Certificate Number|Original Issue Date|Issue Date|Surveillance/Expiry Date|Recertification Date|Initial Registration Date|Surveillance Due Date|Expiry Date|Extra Line)|$)"
+        ],
+        "Scope": [
+            r"Scope[:\s]+(.+?)(?=\n\s*(?:Certificate Number|Original Issue Date|Issue Date|Surveillance/Expiry Date|Recertification Date|Initial Registration Date|Surveillance Due Date|Expiry Date|Extra Line)|$)",
+            r"Scope of Work[:\s]+(.+?)(?=\n\s*(?:Certificate Number|Original Issue Date|Issue Date|Surveillance/Expiry Date|Recertification Date|Initial Registration Date|Surveillance Due Date|Expiry Date|Extra Line)|$)"
+        ]
+    }
+    
+    import re
+    
+    for field_name, field_patterns in patterns.items():
+        for pattern in field_patterns:
+            match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+            if match:
+                value = match.group(1).strip()
+                if value:
+                    data[field_name] = value
+                    print(f"🔍 [PDF-DEBUG] Found {field_name}: '{value[:100]}{'...' if len(value) > 100 else ''}'")
+                    break
+    
+    return data
+
 def get_text_height(text: str, fontsize: float, fontname: str, max_width: float) -> float:
     """Estimate the height of a text block when wrapped to fit max_width."""
     font = fitz.Font(fontname=fontname)

@@ -13,6 +13,7 @@ import { FilterBuilder } from './RecordList/FilterBuilder';
 import { UniversalFieldDisplay, formatColumnLabel } from '../ui/UniversalFieldDisplay';
 import CustomTabRenderer from './CustomTabRenderer';
 import * as XLSX from 'xlsx';
+import { draftToClientService } from '../../services/DraftToClientService';
 
 interface TabContentProps {
   tabId: string;
@@ -131,6 +132,9 @@ export default function TabContent({
 
   // NEW: State for record selection functionality
   const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([]);
+  
+  // NEW: State for table display options
+  const [columnWidths, setColumnWidths] = useState<{ [key: string]: string }>({});
  
   // NEW: Navigation state for record detail view
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
@@ -141,10 +145,8 @@ export default function TabContent({
     objectLabel: string;
   } | null>(null);
  
-  // NEW: State for reference field display values
-  const [referenceDisplayValues, setReferenceDisplayValues] = useState<{ [key: string]: { [fieldName: string]: string } }>({});
  
-  const { tenant } = useSupabase();
+  const { tenant, user } = useSupabase();
   const supabase = createClientComponentClient();
 
 
@@ -684,6 +686,64 @@ export default function TabContent({
   const handleRecordSelectionChange = (selectedIds: string[]) => {
     setSelectedRecordIds(selectedIds);
     console.log('🔍 Selected record IDs:', selectedIds);
+  };
+
+  // NEW: Handle column width changes
+  const handleColumnWidthChange = (columnKey: string, width: string) => {
+    setColumnWidths(prev => ({
+      ...prev,
+      [columnKey]: width
+    }));
+  };
+
+  // NEW: Handle column resizing with mouse drag
+  const handleColumnResize = (e: React.MouseEvent, fieldName: string) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = parseInt(columnWidths[fieldName]?.replace('px', '') || '200');
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = startWidth + (e.clientX - startX);
+      const clampedWidth = Math.max(100, Math.min(500, newWidth));
+      handleColumnWidthChange(fieldName, `${clampedWidth}px`);
+    };
+    
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // NEW: Handle draft approval using the service
+  const handleDraftApproval = async (recordId: string) => {
+    if (!tenant?.id) {
+      console.error('❌ No tenant ID available');
+      return;
+    }
+
+    try {
+      const result = await draftToClientService.handleDraftApproval(
+        recordId,
+        tenant.id,
+        user?.id
+      );
+
+      if (result.success) {
+        alert(result.message);
+        // Refresh the records to show updated data
+        await fetchObjectRecords();
+      } else {
+        console.error('❌ Draft approval failed:', result.message);
+        if (result.error) {
+          console.error('❌ Error details:', result.error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error handling draft approval:', error);
+    }
   };
 
   // DEBUG: Log DataTable props (moved to renderObjectTab function)
@@ -1239,119 +1299,7 @@ export default function TabContent({
     }
   };
 
-  // NEW: Function to resolve reference field display values
-  const resolveReferenceFieldValue = async (fieldName: string, fieldValue: string, referenceTable: string, referenceDisplayField: string) => {
-    if (!fieldValue || !referenceTable || !referenceDisplayField) {
-      console.log(`🔍 Skipping reference resolution for ${fieldName}: missing values`, { fieldValue, referenceTable, referenceDisplayField });
-      return fieldValue;
-    }
 
-    try {
-      console.log(`🔍 Resolving reference for ${fieldName}:`, { fieldValue, referenceTable, referenceDisplayField });
-      
-      const { data, error } = await supabase
-        .from(referenceTable)
-        .select(`${referenceDisplayField}, id`)
-        .eq('id', fieldValue)
-        .single();
-
-      if (error) {
-        console.warn(`Failed to resolve reference for ${fieldName}:`, error);
-        return fieldValue; // Fallback to original value
-      }
-
-      if (data && data[referenceDisplayField]) {
-        console.log(`✅ Resolved ${fieldName}: ${fieldValue} -> ${data[referenceDisplayField]}`);
-        return data[referenceDisplayField];
-      }
-
-      console.warn(`No data found for reference ${fieldName} in table ${referenceTable}`);
-      return fieldValue; // Fallback to original value
-    } catch (err) {
-      console.warn(`Error resolving reference for ${fieldName}:`, err);
-      return fieldValue; // Fallback to original value
-    }
-  };
-
-  // NEW: Function to resolve all reference fields for a record
-  const resolveRecordReferenceFields = async (record: GroupedRecord) => {
-    if (!fieldMetadata || fieldMetadata.length === 0) {
-      console.log('🔍 No field metadata available for reference resolution');
-      return;
-    }
-
-    const referenceFields = fieldMetadata.filter(field => 
-      field.type === 'reference' && 
-      field.reference_table && 
-      field.reference_display_field
-    );
-
-    console.log(`🔍 Found ${referenceFields.length} reference fields to resolve for record ${record.record_id}:`, 
-      referenceFields.map(f => ({ name: f.name, table: f.reference_table, display: f.reference_display_field })));
-
-    if (referenceFields.length === 0) return;
-
-    const recordId = record.record_id;
-    const resolvedValues: { [fieldName: string]: string } = {};
-
-    for (const field of referenceFields) {
-      const fieldValue = record.fields[field.name];
-      if (fieldValue) {
-        console.log(`🔍 Resolving reference field ${field.name} with value ${fieldValue}`);
-        const displayValue = await resolveReferenceFieldValue(
-          field.name, 
-          fieldValue, 
-          field.reference_table!, 
-          field.reference_display_field!
-        );
-        resolvedValues[field.name] = displayValue;
-      } else {
-        console.log(`🔍 Reference field ${field.name} has no value to resolve`);
-      }
-    }
-
-    if (Object.keys(resolvedValues).length > 0) {
-      console.log(`✅ Resolved ${Object.keys(resolvedValues).length} reference fields for record ${recordId}:`, resolvedValues);
-      setReferenceDisplayValues(prev => ({
-        ...prev,
-        [recordId]: resolvedValues
-      }));
-    } else {
-      console.log(`⚠️ No reference fields were resolved for record ${recordId}`);
-    }
-  };
-
-  // NEW: Function to resolve reference fields for all records
-  const resolveAllReferenceFields = async () => {
-    if (!records || records.length === 0 || !fieldMetadata || fieldMetadata.length === 0) return;
-
-    console.log('🔍 Resolving reference fields for all records...');
-    
-    for (const record of records) {
-      await resolveRecordReferenceFields(record);
-    }
-  };
-
-  // NEW: Effect to resolve reference fields when records or field metadata changes
-  useEffect(() => {
-    if (records.length > 0 && fieldMetadata.length > 0) {
-      resolveAllReferenceFields();
-    }
-  }, [records, fieldMetadata]);
-
-  // NEW: Function to get display value for a field (with reference resolution)
-  const getFieldDisplayValue = (record: GroupedRecord, fieldName: string, fieldValue: any): string => {
-    // Check if this is a reference field that has been resolved
-    const recordId = record.record_id;
-    const resolvedValues = referenceDisplayValues[recordId];
-    
-    if (resolvedValues && resolvedValues[fieldName] !== undefined) {
-      return resolvedValues[fieldName];
-    }
-
-    // Return original value if not a reference field or not yet resolved
-    return fieldValue || '-';
-  };
 
   // Render Object Tab content
   const renderObjectTab = () => {
@@ -1399,10 +1347,10 @@ export default function TabContent({
     const handleExportClick = () => {
       console.log('🔍 === EXPORT CLICKED ===');
       console.log('🔍 Selected records:', selectedRecordIds.length);
-      console.log('🔍 Available fields:', displayFieldNames);
+      console.log('🔍 Available fields:', allFieldNames);
       
-      // Initialize with all current display fields selected
-      setSelectedFieldsForExport([...displayFieldNames]);
+      // Initialize with all available fields selected (not just display fields)
+      setSelectedFieldsForExport([...allFieldNames]);
       setShowExportModal(true);
     };
 
@@ -1768,6 +1716,20 @@ export default function TabContent({
               </div>
             )}
 
+            {/* Table Info Bar */}
+            <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-gray-500">
+                    {records.length} record{records.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="text-sm text-gray-500">
+                  {displayFieldNames.length} field{displayFieldNames.length !== 1 ? 's' : ''} displayed
+                </div>
+              </div>
+            </div>
+
             {/* Data Table Content */}
             {console.log('🔍 DataTable Props Debug:', {
               recordsCount: records.length,
@@ -1786,11 +1748,31 @@ export default function TabContent({
             selectedItems={selectedRecordIds}
             onSelectionChange={handleRecordSelectionChange}
             getItemId={(record) => record.record_id}
+            columnWidths={columnWidths}
+            onColumnWidthChange={handleColumnWidthChange}
             renderHeader={() => (
               <>
-                {displayFieldNames.map(fieldName => (
-                  <th key={fieldName} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                   {getFieldLabel(fieldName)}
+                {displayFieldNames.map((fieldName, index) => (
+                  <th 
+                    key={fieldName} 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative group"
+                    style={{ 
+                      width: columnWidths[fieldName] || 'auto',
+                      minWidth: '120px',
+                      maxWidth: columnWidths[fieldName] || '300px'
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>{getFieldLabel(fieldName)}</span>
+                    </div>
+                    {/* Draggable Resizer */}
+                    {index < displayFieldNames.length - 1 && (
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-1 bg-gray-300 hover:bg-blue-500 cursor-col-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                        onMouseDown={(e) => handleColumnResize(e, fieldName)}
+                        style={{ width: '4px' }}
+                      />
+                    )}
                   </th>
                 ))}
               </>
@@ -1818,28 +1800,38 @@ export default function TabContent({
                     });
                    
                     return (
-                      <td key={fieldName} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {fieldName === 'name' ? (
-                          // NEW: Make Name field clickable
-                          <button
-                            onClick={() => handleRecordClick(record)}
-                            className="text-blue-600 hover:text-blue-800 hover:underline font-medium cursor-pointer"
-                          >
-                            {fieldValue || '-'}
-                          </button>
-                        ) : (
-                          // Use UniversalFieldDisplay for all other fields
-                          <UniversalFieldDisplay
-                            record={record.fields}
-                            fieldName={fieldName}
-                            fieldValue={fieldValue}
-                            fieldType={fieldMeta?.type}
-                            referenceTable={fieldMeta?.reference_table || undefined}
-                            referenceDisplayField={fieldMeta?.reference_display_field || undefined}
-                            tenantId={tenant?.id || ''}
-                            recordId={record.record_id}
-                          />
-                        )}
+                      <td 
+                        key={fieldName} 
+                        className="px-6 py-4 text-sm text-gray-900 break-words"
+                        style={{ 
+                          width: columnWidths[fieldName] || 'auto',
+                          minWidth: '120px',
+                          maxWidth: columnWidths[fieldName] || '300px'
+                        }}
+                      >
+                        <div className="break-words">
+                          {fieldName === 'name' ? (
+                            // NEW: Make Name field clickable
+                            <button
+                              onClick={() => handleRecordClick(record)}
+                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium cursor-pointer"
+                            >
+                              {fieldValue || '-'}
+                            </button>
+                          ) : (
+                            // Use UniversalFieldDisplay for all other fields
+                            <UniversalFieldDisplay
+                              record={record.fields}
+                              fieldName={fieldName}
+                              fieldValue={fieldValue}
+                              fieldType={fieldMeta?.type}
+                              referenceTable={fieldMeta?.reference_table || undefined}
+                              referenceDisplayField={fieldMeta?.reference_display_field || undefined}
+                              tenantId={tenant?.id || ''}
+                              recordId={record.record_id}
+                            />
+                          )}
+                        </div>
                       </td>
                     );
                   })}
@@ -1882,13 +1874,29 @@ export default function TabContent({
                 
                 {/* Field Selection */}
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600 mb-4">
-                    Select which fields to include in the export:
-                  </p>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-gray-600">
+                      Select which fields to include in the export:
+                    </p>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => setSelectedFieldsForExport([...allFieldNames])}
+                        className="text-xs px-2 py-1 text-blue-600 hover:text-blue-800 border border-blue-300 rounded"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={() => setSelectedFieldsForExport([])}
+                        className="text-xs px-2 py-1 text-gray-600 hover:text-gray-800 border border-gray-300 rounded"
+                      >
+                        Select None
+                      </button>
+                    </div>
+                  </div>
                   
                   <div className="border border-gray-300 rounded-md p-4 max-h-60 overflow-y-auto">
                     <div className="space-y-3">
-                      {displayFieldNames.map(fieldName => (
+                      {allFieldNames.map(fieldName => (
                         <label key={fieldName} className="flex items-center">
                           <input
                             type="checkbox"

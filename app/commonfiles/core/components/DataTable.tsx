@@ -19,6 +19,9 @@ interface DataTableProps<T> {
   selectedItems?: string[];
   onSelectionChange?: (selectedIds: string[]) => void;
   getItemId?: (item: T) => string;
+  // NEW: Column width functionality
+  columnWidths?: { [key: string]: string };
+  onColumnWidthChange?: (columnKey: string, width: string) => void;
 }
 
 // Helper type to handle both direct properties and nested fields
@@ -42,7 +45,10 @@ export default function DataTable<T>({
   enableSelection = false,
   selectedItems = [],
   onSelectionChange,
-  getItemId
+  getItemId,
+  // NEW: Column width props
+  columnWidths = {},
+  onColumnWidthChange
 }: DataTableProps<T>) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -153,12 +159,12 @@ export default function DataTable<T>({
           </div>
         ) : filteredData.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="min-w-full divide-y divide-gray-200 table-fixed">
               {renderHeader && (
                 <thead className="bg-gray-50">
                   {enableSelection ? (
                     <tr>
-                      <th className="px-6 py-3 text-left">
+                      <th className="px-6 py-3 text-left w-12">
                         <input
                           type="checkbox"
                           checked={isAllSelected}
@@ -185,7 +191,7 @@ export default function DataTable<T>({
                     // For selection-enabled tables, renderRow returns <td> elements
                     return (
                       <tr key={itemId || index} className={isSelected ? 'bg-blue-50' : ''}>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-6 py-4 w-12">
                           <input
                             type="checkbox"
                             checked={isSelected}

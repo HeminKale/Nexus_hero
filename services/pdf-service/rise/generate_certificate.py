@@ -2121,15 +2121,29 @@ def generate_certificate(base_pdf_path: str, output_pdf_path: str, values: Dict[
                         print(f"🔍 [CERTIFICATE] DEBUG: get_iso_standard_code returned: '{cert_code}'")
                         
                         if cert_code:
-                            # ✅ NEW: Use different coordinates based on accreditation status
-                            if accreditation == "no":
-                                # Non-accredited: Move code to the right
-                                code_rect = fitz.Rect(335, 757, 390, 762)  # Updated coordinates
-                                print(f"🔍 [CERTIFICATE] Non-accredited certificate - using right position")
+                            # ✅ ENHANCED: Use different coordinates based on accreditation status AND country
+                            country = (values.get("Country") or values.get("country") or "").strip()
+                            
+                            if country == "Other":
+                                # Keep current logic for "Other" country
+                                if accreditation == "no":
+                                    # Non-accredited: Move code to the right
+                                    code_rect = fitz.Rect(335, 757, 390, 762)  # Updated coordinates
+                                    print(f"🔍 [CERTIFICATE] Other country, Non-accredited certificate - using right position")
+                                else:
+                                    # Accredited: Use original position
+                                    code_rect = coords["certification_code"]  # Original: (253, 757, 285, 762)
+                                    print(f"🔍 [CERTIFICATE] Other country, Accredited certificate - using standard position")
                             else:
-                                # Accredited: Use original position
-                                code_rect = coords["certification_code"]  # Original: (253, 757, 285, 762)
-                                print(f"🔍 [CERTIFICATE] Accredited certificate - using standard position")
+                                # Non-"Other" country: Same x logic, but increase y by 8 points
+                                if accreditation == "no":
+                                    # Non-accredited: Move code to the right + down 8 points + 5pt left
+                                    code_rect = fitz.Rect(330, 765, 385, 770)  # y + 8, x - 5
+                                    print(f"🔍 [CERTIFICATE] Non-Other country, Non-accredited certificate - using right position + 8pt down + 5pt left")
+                                else:
+                                    # Accredited: Use original x position + down 8 points
+                                    code_rect = fitz.Rect(253, 765, 285, 770)  # y + 8
+                                    print(f"🔍 [CERTIFICATE] Non-Other country, Accredited certificate - using standard position + 8pt down")
                             
                             print(f"🔍 [CERTIFICATE] DEBUG: Using certification_code coordinates: {code_rect}")
                             

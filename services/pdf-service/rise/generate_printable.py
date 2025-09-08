@@ -1514,15 +1514,29 @@ def generate_printable_cert(base_pdf_path: str, output_pdf_path: str, values: Di
                 if cert_code:
                     print(f"🔍 [PRINTABLE] ISO Standard '{text}' maps to certification code: '{cert_code}'")
                     
-                    # ✅ NEW: Use different coordinates based on accreditation status
-                    if accreditation == "no":
-                        # Non-accredited: Move code to the right
-                        code_rect = fitz.Rect(335, 757, 390, 762)  # Updated coordinates
-                        print(f"🔍 [PRINTABLE] Non-accredited certificate - using right position")
+                    # ✅ ENHANCED: Use different coordinates based on accreditation status AND country
+                    country = (values.get("Country") or values.get("country") or "").strip()
+                    
+                    if country == "Other":
+                        # Keep current logic for "Other" country
+                        if accreditation == "no":
+                            # Non-accredited: Move code to the right
+                            code_rect = fitz.Rect(335, 757, 390, 762)  # Updated coordinates
+                            print(f"🔍 [PRINTABLE] Other country, Non-accredited certificate - using right position")
+                        else:
+                            # Accredited: Use original position
+                            code_rect = coords["certification_code"]  # Original: (253, 757, 285, 762)
+                            print(f"🔍 [PRINTABLE] Other country, Accredited certificate - using standard position")
                     else:
-                        # Accredited: Use original position
-                        code_rect = coords["certification_code"]  # Original: (253, 757, 285, 762)
-                        print(f"🔍 [PRINTABLE] Accredited certificate - using standard position")
+                        # Non-"Other" country: Same x logic, but increase y by 8 points
+                        if accreditation == "no":
+                            # Non-accredited: Move code to the right + down 8 points + 5pt left
+                            code_rect = fitz.Rect(330, 765, 385, 770)  # y + 8, x - 5
+                            print(f"🔍 [PRINTABLE] Non-Other country, Non-accredited certificate - using right position + 8pt down + 5pt left")
+                        else:
+                            # Accredited: Use original x position + down 8 points
+                            code_rect = fitz.Rect(253, 765, 285, 770)  # y + 8
+                            print(f"🔍 [PRINTABLE] Non-Other country, Accredited certificate - using standard position + 8pt down")
                     
                     # ✅ FIXED: Use reliable font that's always available in PyMuPDF
                     reliable_font = "helv"  # Helvetica - always available in PyMuPDF

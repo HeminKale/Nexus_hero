@@ -211,22 +211,30 @@ async def health_check():
 
 @app.post("/extract-fields")
 async def extract_fields(form: UploadFile = File(...)):
-    """Extract form fields from Word document without generating PDF."""
+    """Extract form fields from Word document, PDF, or image without generating PDF."""
     
     # Validate file types
-    if not form.filename.lower().endswith(".docx"):
-        raise HTTPException(status_code=400, detail="Form must be .docx format")
+    file_extension = form.filename.lower().split('.')[-1] if '.' in form.filename else ""
+    supported_extensions = ['docx', 'pdf', 'png', 'jpg', 'jpeg']
+    
+    if file_extension not in supported_extensions:
+        raise HTTPException(status_code=400, detail="Form must be .docx, .pdf, .png, or .jpg format")
     
     try:
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp_file:
+        # Save uploaded file temporarily with appropriate extension
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as tmp_file:
             content = await form.read()
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
         
         try:
-            # Extract fields using the parse_word_form function
-            extracted_fields = parse_word_form(tmp_file_path)
+            # Extract fields based on file type
+            if file_extension == "docx":
+                extracted_fields = parse_word_form(tmp_file_path)
+            elif file_extension in ["pdf", "png", "jpg", "jpeg"]:
+                extracted_fields = parse_pdf_form(tmp_file_path)
+            else:
+                raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_extension}")
             
             # Clean up temporary file
             os.unlink(tmp_file_path)
@@ -250,8 +258,11 @@ async def generate_certificate_endpoint(
 ):
     """Generate certificate from form and field data using Supabase template."""
     # Validate file types
-    if not form.filename.lower().endswith(".docx"):
-        raise HTTPException(status_code=400, detail="Form must be .docx format")
+    file_extension = form.filename.lower().split('.')[-1] if '.' in form.filename else ""
+    supported_extensions = ['docx', 'pdf', 'png', 'jpg', 'jpeg']
+    
+    if file_extension not in supported_extensions:
+        raise HTTPException(status_code=400, detail="Form must be .docx, .pdf, .png, or .jpg format")
     
     try:
         # Parse field data
@@ -308,8 +319,8 @@ async def generate_certificate_endpoint(
         except Exception as logo_error:
             logo_lookup = {}
         
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp_file:
+        # Save uploaded file temporarily with appropriate extension
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as tmp_file:
             content = await form.read()
             tmp_file.write(content)
             tmp_file_path = tmp_file.name

@@ -15,9 +15,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!formDoc.name.toLowerCase().endsWith(".docx")) {
+    const fileExtension = formDoc.name.toLowerCase().split('.').pop();
+    const supportedExtensions = ['docx', 'pdf', 'png', 'jpg', 'jpeg'];
+    
+    if (!fileExtension || !supportedExtensions.includes(fileExtension)) {
       return NextResponse.json(
-        { error: "Form must be .docx format" },
+        { error: "Form must be .docx, .pdf, .png, or .jpg format" },
         { status: 400 }
       );
     }
